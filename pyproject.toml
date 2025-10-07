@@ -5,13 +5,13 @@ description = "Token usage analytics for Codex CLI sessions"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-license-files = "LICENSE"
+license-files = ["LICENSE"]
 authors = [{ name = "takeshid", email = "goriponikeike55@gmail.com" }]
 keywords = ["codex", "tokenusage", "mcp", "llm"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
-    "Intendeed Audience :: Developers",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.12",
@@ -24,6 +24,12 @@ Repository = "https://github.com/takeshiD/cxstat"
 [build-system]
 requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/README.md",
+    "/cxstat"
+]
 
 [project.scripts]
 cxstat = "cxstat.cli:app"
