@@ -1,8 +1,8 @@
-# tokstat
+# cxstat
 
 Token usage analytics for Codex CLI sessions, powered by Typer and Rich.
 
-## Why tokstat?
+## Why cxstat?
 - Transform raw MCP and shell call logs into an at-a-glance productivity dashboard.
 - Highlight the most expensive tools, prompts, and projects so you can tune workflows fast.
 - Ship with sensible defaults (tokenizer auto-detection, friendly tables) yet remain fully configurable.
@@ -15,30 +15,30 @@ Token usage analytics for Codex CLI sessions, powered by Typer and Rich.
 - **Zero-noise defaults** - ignores empty invocations while keeping total call counts for context.
 
 ## Installation
-tokstat targets Python 3.12+. Install from source with your preferred workflow:
+cxstat targets Python 3.12+. Install from source with your preferred workflow:
 
 ```bash
 # using uv
-uvx tokstat
+uvx cxstat
 
 # or with pip
-pip install tokstat
+pip install cxstat
 ```
 
-The CLI is exposed as the `tokstat` entry point via Typer.
+The CLI is exposed as the `cxstat` entry point via Typer.
 
 ## Quick Start
 Analyse your Codex CLI history in seconds:
 
 ```bash
 # default root is ~/.codex/sessions
-tokstat
+cxstat
 
 # customise the tokenizer and row limits
-tokstat --model gpt-4o-mini --top 10
+cxstat --model gpt-4o-mini --top 10
 
 # inspect usage grouped by project paths
-tokstat list-project --sessions-root /path/to/sessions
+cxstat list-project --sessions-root /path/to/sessions
 ```
 
 Sample summary output:
@@ -64,10 +64,10 @@ Token Usage by Project
 ```
 
 ## How It Works
-- `tokstat.service` handles log discovery, JSONL parsing, and token aggregation (global, provider, detail, project scopes).
-- `tokstat.models` defines lightweight dataclasses (`CallRecord`, `Aggregate`, `ProjectUsage`, `UsageReport`).
-- `tokstat.view` renders Rich tables with zebra-striping, highlights, and friendly fallbacks when data is missing.
-- `tokstat.cli` wires everything together with Typer, managing shared CLI state and commands.
+- `cxstat.service` handles log discovery, JSONL parsing, and token aggregation (global, provider, detail, project scopes).
+- `cxstat.models` defines lightweight dataclasses (`CallRecord`, `Aggregate`, `ProjectUsage`, `UsageReport`).
+- `cxstat.view` renders Rich tables with zebra-striping, highlights, and friendly fallbacks when data is missing.
+- `cxstat.cli` wires everything together with Typer, managing shared CLI state and commands.
 
 ## Configuration Options
 All commands share these flags:
@@ -80,7 +80,7 @@ All commands share these flags:
 ```bash
 uv run pyright
 uv run ruff check
-uv run tokstat --sessions-root fixtures
+uv run cxstat --sessions-root fixtures
 ```
 
 - Type-check with Pyright and lint with Ruff before committing.

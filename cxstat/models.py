@@ -1,4 +1,4 @@
-"""Data models for tokstat token usage aggregation."""
+"""Data models for cxstat token usage aggregation."""
 
 from __future__ import annotations
 

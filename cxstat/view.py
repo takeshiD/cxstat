@@ -1,4 +1,4 @@
-"""Rendering helpers using Rich for tokstat CLI output."""
+"""Rendering helpers using Rich for cxstat CLI output."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""tokstat package exports."""
+"""cxstat package exports."""
 
 from .cli import app
 

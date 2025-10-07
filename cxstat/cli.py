@@ -1,4 +1,4 @@
-"""Typer-based CLI entry point for tokstat."""
+"""Typer-based CLI entry point for cxstat."""
 
 from __future__ import annotations
 

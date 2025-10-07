@@ -1,18 +1,18 @@
-# Tokstat Agent Design
+# cxstat Agent Design
 
 ## Overview
 - Purpose: gather MCP and shell tool usage from Codex CLI session logs under `~/.codex/sessions` and expose user-friendly CLI reports.
 - Success criteria: Typer-based command structure, Rich-formatted summaries, and project-wide plus per-project token statistics.
-- Constraints: Python 3.12+, existing parsing utilities in `tokstat/main.py`, mandatory Pyright/Ruff validation in follow-up implementation.
+- Constraints: Python 3.12+, existing parsing utilities in `cxstat/main.py`, mandatory Pyright/Ruff validation in follow-up implementation.
 - Quality gate: every coding iteration must run `uv run pyright` and `uv run ruff check` before changes are considered complete.
 
 ## CLI Architecture
-- Replace the standalone `main()` argparse entry point with a Typer application (`tokstat/cli.py`).
+- Replace the standalone `main()` argparse entry point with a Typer application (`cxstat/cli.py`).
 - Root callback defines shared options (`--sessions-root`, `--model`, `--encoding`, `--top`, `--show-full`).
 - Commands:
-  - `tokstat` (default action mapped to `summary`) prints global usage breakdown across all projects and tools.
-  - `tokstat list-project` lists each project (derived from session path) with aggregated token totals and call counts.
-- Packaging: update `pyproject.toml` script entry to `tokstat = "tokstat.cli:app"`; expose `app` from `tokstat/__init__.py`.
+  - `cxstat` (default action mapped to `summary`) prints global usage breakdown across all projects and tools.
+  - `cxstat list-project` lists each project (derived from session path) with aggregated token totals and call counts.
+- Packaging: update `pyproject.toml` script entry to `cxstat = "cxstat.cli:app"`; expose `app` from `cxstat/__init__.py`.
 
 ## Data Model & Aggregation
 - Reuse `CallRecord` and `Aggregate` to capture per-invocation details and token metrics.
@@ -25,7 +25,7 @@
   - Per-project totals for shell vs MCP (extendable to other tools).
 
 ## Presentation Layer
-- Build dedicated rendering helpers in `tokstat/view.py` (or similar) that accept aggregation results and produce Rich tables.
+- Build dedicated rendering helpers in `cxstat/view.py` (or similar) that accept aggregation results and produce Rich tables.
 - Use `Console.print` with `Table` objects, configuring column alignment, styles, and optional zebra striping for readability.
 - `summary` command: render counts of total tokens, input/output split, call volume, and top-N rankings (configurable via `--top` / `--show-full`).
 - `list-project` command: render project name/path, combined token totals, per-tool splits, and latest invocation timestamp (if available).
@@ -38,7 +38,7 @@
 
 ## Verification Workflow
 - After implementation, run `uv run pyright` and `uv run ruff check` to satisfy the mandatory static analysis policy.
-- Create lightweight fixtures (sample JSONL logs) for smoke tests validating CLI outputs via `uv run tokstat --sessions-root fixtures`.
+- Create lightweight fixtures (sample JSONL logs) for smoke tests validating CLI outputs via `uv run cxstat --sessions-root fixtures`.
 - Consider automated regression tests for aggregation helpers using pytest or snapshot comparisons.
 
 ## Rich Rendering Demo

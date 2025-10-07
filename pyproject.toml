@@ -1,5 +1,5 @@
 [project]
-name = "tokstat"
+name = "cxstat"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -15,11 +15,11 @@ requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
 
 [project.scripts]
-tokstat = "tokstat.cli:app"
+cxstat = "cxstat.cli:app"
 
 [tool.pyright]
 include = [
-    "tokstat"
+    "cxstat"
 ]
 exclude = [
     "**/__pycache__",
