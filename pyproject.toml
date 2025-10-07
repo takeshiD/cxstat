@@ -1,14 +1,25 @@
 [project]
 name = "cxstat"
 version = "0.1.0"
-description = "Add your description here"
+description = "Token usage analytics for Codex CLI sessions"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "tiktoken>=0.12.0",
-    "typer>=0.12",
-    "rich>=13",
+license = "MIT"
+license-files = "LICENSE"
+authors = [{ name = "takeshid", email = "goriponikeike55@gmail.com" }]
+keywords = ["codex", "tokenusage", "mcp", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intendeed Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.12",
 ]
+dependencies = ["tiktoken>=0.12.0", "typer>=0.12", "rich>=13"]
+
+[project.urls]
+Repository = "https://github.com/takeshiD/cxstat"
 
 [build-system]
 requires = ["hatchling >= 1.26"]
@@ -18,19 +29,13 @@ build-backend = "hatchling.build"
 cxstat = "cxstat.cli:app"
 
 [tool.pyright]
-include = [
-    "cxstat"
-]
-exclude = [
-    "**/__pycache__",
-]
+include = ["cxstat"]
+exclude = ["**/__pycache__"]
 typeCheckingMode = "basic"
 
 [tool.ruff]
 target-version = "py312"
-select = [
-    "ALL"
-]
+select = ["ALL"]
 line-length = 120
 
 [tool.ruff.pydocstyle]
