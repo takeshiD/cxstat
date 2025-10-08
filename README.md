@@ -3,6 +3,8 @@
 
 Token usage analytics for Codex CLI sessions
 
+![](/docs/images/cxstat_no_args.png)
+
 ## What cxstat?
 - Visualize token usage for MCP and shell and more other tool call.
 - Highlight the most expensive tools, prompts, and projects so you can tune workflows fast.
@@ -30,16 +32,29 @@ pip install cxstat
 ## Quick Start
 Analyse your Codex CLI history in seconds:
 
-```bash
-# default root is ~/.codex/sessions
-cxstat
+1. Summarise every project collected under the default sessions root (`~/.codex/sessions`):
 
-# customise the tokenizer and row limits
-cxstat --top 10
+   ```bash
+   cxstat
+   ```
 
-# inspect usage grouped by project paths
-cxstat list-project
-```
+   Use flags such as `--detail` or `--top 10` when you want deeper tool or prompt rankings.
+
+2. Focus on a single project by passing its path (absolute or relative) as the positional argument:
+
+   ```bash
+   cxstat /path/to/project
+   ```
+
+   The summary switches to that project only and reuses your chosen options (e.g. `--detail`).
+
+3. Review the project catalogue with their aggregated totals:
+
+   ```bash
+   cxstat list-project --top 10
+   ```
+
+   The listing displays each project path, total/input/output token counts, call volume, and the most recent invocation timestamp. Combine it with `--sessions-root` when your logs live outside the default directory.
 
 Sample summary output:
 
