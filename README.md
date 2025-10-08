@@ -1,3 +1,4 @@
+![](/docs/images/cxstat_logo.png)
 # cxstat
 
 Token usage analytics for Codex CLI sessions
