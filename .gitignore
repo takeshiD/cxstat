@@ -10,3 +10,4 @@ wheels/
 .venv
 .serena
 .ruff_cache
+.envrc
