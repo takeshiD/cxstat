@@ -32,62 +32,108 @@ pip install cxstat
 ## Quick Start
 Analyse your Codex CLI history in seconds:
 
-1. Summarise every project collected under the default sessions root (`~/.codex/sessions`):
+### Summarise every project tool token usage
+collected under the default sessions root (`~/.codex/sessions`)
 
-   ```bash
-   cxstat
-   ```
+```bash
+$ cxstat
+                                    Token Usage by Tool
 
-   Use flags such as `--detail` or `--top 10` when you want deeper tool or prompt rankings.
-
-2. Focus on a single project by passing its path (absolute or relative) as the positional argument:
-
-   ```bash
-   cxstat /path/to/project
-   ```
-
-   The summary switches to that project only and reuses your chosen options (e.g. `--detail`).
-
-3. Review the project catalogue with their aggregated totals:
-
-   ```bash
-   cxstat list-project --top 10
-   ```
-
-   The listing displays each project path, total/input/output token counts, call volume, and the most recent invocation timestamp. Combine it with `--sessions-root` when your logs live outside the default directory.
-
-Sample summary output:
-
-```
-Analysed 128 tool invocations (96 with tokens).
-Total tokens: 68,421 (input 41,230 / output 27,191).
-
-Token Usage by Tool
-#  Label                                 Total Tokens  Input   Output  Calls
-1  mcp.tavily-search                             18432  12321     6111     28
-2  shell                                         14220   9000     5220     35
-3  mcp.context7:get-library-docs                  8230   5110     3120     12
+  #   Label                                     Total Tokens     Input      Output   Calls
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1   shell                                        1,939,531   494,773   1,444,758    3061
+  2   serena__find_symbol                            165,339    10,439     154,900     411
+  3   sequential-thinking__sequentialthinking         50,163    37,898      12,265     217
+  4   serena__search_for_pattern                      38,790     5,331      33,459     210
+  5   serena__activate_project                        28,935    20,413       8,522      42
+  6   update_plan                                     24,910    24,544         366     183
+  7   serena__get_symbols_overview                    23,186     1,613      21,573     116
+  8   context7__resolve-library-id                    18,552        64      18,488       8
+  9   serena__list_dir                                 9,804     1,456       8,348      91
+ 10   serena__replace_symbol_body                      9,696     9,554         142      24
 ```
 
-The project listing offers similar insight per workspace:
+Use flags such as `--detail` or `--top 10` when you want deeper tool or prompt rankings.
 
+### Focus on a single project
+You can view a summary focused on a specific project.
+
+```bash
+$ cxstat ~/path/to/project
+Project: /home/your_name/path/to/project
+Total tokens: 1,338,272 (input 354,260 / output 984,012) | calls 2821
+Last invocation: 2025-10-05T21:52:15+09:00
+                                   Token Usage by Tool
+
+  #   Label                                     Total Tokens     Input    Output   Calls
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1   shell                                        1,116,967   299,797   817,170    1972
+  2   serena__find_symbol                            104,009     6,948    97,061     278
+  3   sequential-thinking__sequentialthinking         25,595    19,807     5,788     103
+  4   serena__search_for_pattern                      22,200     3,428    18,772     145
+  5   context7__resolve-library-id                    14,094        51    14,043       6
+  6   serena__get_symbols_overview                    12,761       688    12,073      58
+  7   update_plan                                     11,037    10,889       148      74
+  8   serena__replace_symbol_body                      8,991     8,859       132      22
+  9   context7__get-library-docs                       6,378        77     6,301       3
+ 10   serena__activate_project                         3,946       199     3,747      18
 ```
-Token Usage by Project
-#  Project                               Total Tokens  Input   Output  Calls  Last Invocation
-1  /home/user/work/acme-app                     19876   12980     6896     42  2025-07-18T14:02:33
-2  /home/user/work/internal-tools               15220    9210     6010     31  2025-07-17T09:11:02
+
+To see detailed information about shell commands, use the `--detail` option.
+
+(e.g `cxstat /to/path --detail`)
+
+## List your project with their aggregated totals:
+
+```bash
+$ cxstat list-project
+
+                                            Token Usage by Project
+
+  #   Project                                   Total Tokens    Input    Output   Calls   Last Invocation
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1   /home/your_name/ex_prog/ex_rust/typua       1,338,272   354,260   984,012    2821   2025-10-05T21:52:15+09:00
+  2   /home/your_name/.codex                        176,235    30,857   145,378     234   2025-10-07T23:06:52+09:00
+  3   /home/your_name/ex_prog/ex_py/cxstat          149,792    40,232   109,560     363   2025-10-08T15:28:09+09:00
+  4   /home/your_name/ex_prog/ex_rust/typua_        127,974    32,115    95,859     196   2025-10-06T15:41:16+09:00
+      check
+  5   /home/your_name/ex_prog/ex_rust/apps/r        123,151    32,581    90,570     133   2025-09-28T17:41:37+09:00
+      ust-analyzer
+  6   /home/your_name/ex_prog/ex_py/tokstat         114,735    37,980    76,755     236   2025-10-08T00:55:14+09:00
+  7   /home/your_name/ex_prog/ex_rust/toksta         81,571    16,738    64,833     135   2025-10-07T01:03:38+09:00
+      t
+  8   /home/your_name/.claude                        30,396     8,597    21,799      83   2025-10-06T16:01:13+09:00
+  9   /home/your_name/ex_prog/ex_rust/mini-r         28,023    10,069    17,954      25   2025-10-06T14:53:26+09:00
+      ua
+ 10   /home/your_name/ex_prog/ex_rust/ex_oct          8,630     3,686     4,944      36   2025-09-20T00:05:28+09:00
+      ocrab
+ 11   /home/your_name/ex_prog/ex_chore                7,652     1,795     5,857       7   2025-09-18T14:49:40+09:00
+ 12   /home/your_name/zenn                            5,855       677     5,178       9   2025-10-08T18:31:17+09:00
 ```
+
+The listing displays each project path, total/input/output token counts, call volume, and the most recent invocation timestamp.
+
 
 ## Options
-All commands share these flags:
-- `--sessions-root PATH` - directory containing Codex CLI JSONL logs (defaults to `~/.codex/sessions`).
-- `--detail` / `-d` - include provider-level and top-call breakdown tables.
-- `--top N` - limit table rows for each summary table.
-- `--theme NAME` / `-t NAME` - select the colour theme for table output (available: `default`, `contrast`, `mono`, `monokai`, `dracura`, `ayu`; default is `dracura`).
+The following options are available except for list-project:
+
+- `--detail` / `-d`  include provider-level and top-call breakdown tables.
+- `--top N`  limit table rows for each summary table.
+- `--theme NAME` / `-t NAME` select the colour theme for table output
+    - `dracura`(default)
+    - `monokai`
+    - `ayu`
+    - `contrast`
+    - `mono`
 - `--version` / `-v` - show the installed cxstat version and exit.
+- `--sessions-root PATH`  directory containing Codex CLI JSONL logs (defaults to `~/.codex/sessions`).
 
 
 ## Roadmap Status
-- [ ] Additional groupings (agents, approval policy, latency buckets).
-- [ ] Optional CSV/JSON export for dashboards.
-- [ ] Snapshot comparisons between two time ranges.
+- [ ] Sorting(by InputToken, OutputToken, Calls, LastInvocation)
+- [ ] Customization of display table
+- [ ] Detailed analysis shell commands(sed, python, node etc...)
+- [ ] Export Data(Json, CSV)
+- [ ] Support of npm iinstall
+- [ ] Support ClaudeCode
+- [ ] CI/CD(docs, tests, publish for pypi)
