@@ -68,6 +68,7 @@ All commands share these flags:
 - `--detail` / `-d` - include provider-level and top-call breakdown tables.
 - `--top N` - limit table rows for each summary table.
 - `--theme NAME` / `-t NAME` - select the colour theme for table output (available: `default`, `contrast`, `mono`, `monokai`, `dracura`, `ayu`; default is `dracura`).
+- `--version` / `-v` - show the installed cxstat version and exit.
 
 
 ## Roadmap Status

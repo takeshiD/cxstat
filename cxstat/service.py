@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from collections import defaultdict
 from datetime import datetime
+from importlib import metadata, resources
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,6 +17,31 @@ from .models import Aggregate, CallRecord, ProjectUsage, UsageReport
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
+
+
+def get_package_version(project_name: str = "cxstat") -> str:
+    """Return the package version, falling back to pyproject metadata when needed."""
+    try:
+        return metadata.version(project_name)
+    except metadata.PackageNotFoundError:
+        try:
+            resource_ref = resources.files(project_name)
+        except (ModuleNotFoundError, AttributeError):
+            package_root = Path(__file__).resolve().parent
+        else:
+            with resources.as_file(resource_ref) as resolved_path:
+                package_root = Path(resolved_path)
+        pyproject_path = package_root.parent / "pyproject.toml"
+        if not pyproject_path.exists():
+            return "unknown"
+        try:
+            with pyproject_path.open("rb") as handle:
+                data = tomllib.load(handle)
+        except (OSError, tomllib.TOMLDecodeError):
+            return "unknown"
+        project_meta = data.get("project", {})
+        version = project_meta.get("version")
+        return str(version) if version else "unknown"
 
 
 def resolve_encoding(model: str | None, encoding_name: str | None) -> Encoding:

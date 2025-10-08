@@ -12,7 +12,7 @@ import typer
 from rich.console import Console
 from typer.main import get_command
 
-from .service import canonicalize_project_path, load_report
+from .service import canonicalize_project_path, get_package_version, load_report
 from .view import (
     get_theme_names,
     render_project_list,
@@ -43,6 +43,15 @@ PROJECT_ARGUMENT = typer.Argument(
 )
 
 
+def _version_callback(value: bool | None) -> bool:  # noqa: FBT001
+    """Display the CLI version when the eager flag is provided."""
+    if value:
+        console = Console()
+        console.print(get_package_version())
+        raise typer.Exit()  # noqa: RSE102
+    return bool(value)
+
+
 DETAIL_OPTION = typer.Option(
     False,  # noqa: FBT003
     "--detail",
@@ -52,6 +61,15 @@ DETAIL_OPTION = typer.Option(
 )
 AVAILABLE_THEMES = get_theme_names()
 DEFAULT_THEME_NAME = "dracura" if "dracura" in AVAILABLE_THEMES else AVAILABLE_THEMES[0]
+VERSION_OPTION = typer.Option(
+    False,  # noqa: FBT003
+    "--version",
+    "-v",
+    is_flag=True,
+    is_eager=True,
+    callback=_version_callback,
+    help="Show cxstat version and exit.",
+)
 THEME_OPTION = typer.Option(
     DEFAULT_THEME_NAME,
     "--theme",
@@ -61,7 +79,8 @@ THEME_OPTION = typer.Option(
     case_sensitive=False,
 )
 
-REORDERABLE_FLAGS = {"--detail", "-d", "--sessions-root", "-r", "--top", "--theme", "-t"}
+VERSION_FLAGS = {"--version", "-v"}
+REORDERABLE_FLAGS = {"--detail", "-d", "--sessions-root", "-r", "--top", "--theme", "-t"} | VERSION_FLAGS
 VALUE_FLAGS = {"--sessions-root", "-r", "--top", "--theme", "-t"}
 DETAIL_FLAGS = {"--detail", "-d"}
 
@@ -122,6 +141,7 @@ def main(
     ctx: typer.Context,
     project: str | None = PROJECT_ARGUMENT,
     *,
+    version: bool = VERSION_OPTION,
     detail: bool = DETAIL_OPTION,
     sessions_root: Path = SESSIONS_ROOT_OPTION,
     top: int = TOP_OPTION,
@@ -136,6 +156,10 @@ def main(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=2) from exc
     theme_name = theme.lower()
+    if version:
+        # The eager callback exits before this executes, but keep coverage safe.
+        return
+
     ctx.obj = AppState(
         sessions_root=resolved_root,
         top=top,
@@ -205,6 +229,10 @@ def _collect_positional_tokens(state: AppState, tokens: list[str]) -> list[str]:
 
         if option_name in DETAIL_FLAGS:
             state.detail = True
+            idx += 1
+            continue
+
+        if option_name in VERSION_FLAGS:
             idx += 1
             continue
 
