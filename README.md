@@ -65,9 +65,9 @@ Token Usage by Project
 ## Options
 All commands share these flags:
 - `--sessions-root PATH` - directory containing Codex CLI JSONL logs (defaults to `~/.codex/sessions`).
-- `--model NAME` - model hint used to resolve the tokenizer (e.g. `gpt-4o-mini`).
-- `--encoding NAME` - explicit tiktoken encoding such as `cl100k_base`.
-- `--top N` - limit table rows; combine with `--show-full` to disable truncation.
+- `--detail` / `-d` - include provider-level and top-call breakdown tables.
+- `--top N` - limit table rows for each summary table.
+- `--theme NAME` / `-t NAME` - select the colour theme for table output (available: `default`, `contrast`, `mono`, `monokai`, `dracura`, `ayu`; default is `dracura`).
 
 
 ## Roadmap Status

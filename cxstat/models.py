@@ -53,11 +53,15 @@ class ProjectUsage:
     project_path: str
     totals: Aggregate = field(default_factory=Aggregate)
     tool_totals: dict[str, Aggregate] = field(default_factory=dict)
+    provider_totals: dict[str, Aggregate] = field(default_factory=dict)
+    detail_totals: dict[str, Aggregate] = field(default_factory=dict)
     last_invocation: datetime | None = None
 
     def add_invocation(
         self,
         tool_key: str,
+        provider_key: str,
+        detail_key: str,
         inp: int,
         out: int,
         timestamp: datetime | None,
@@ -69,6 +73,18 @@ class ProjectUsage:
             aggregate = Aggregate()
             self.tool_totals[tool_key] = aggregate
         aggregate.add(inp, out)
+
+        provider_aggregate = self.provider_totals.get(provider_key)
+        if provider_aggregate is None:
+            provider_aggregate = Aggregate()
+            self.provider_totals[provider_key] = provider_aggregate
+        provider_aggregate.add(inp, out)
+
+        detail_aggregate = self.detail_totals.get(detail_key)
+        if detail_aggregate is None:
+            detail_aggregate = Aggregate()
+            self.detail_totals[detail_key] = detail_aggregate
+        detail_aggregate.add(inp, out)
         if timestamp is not None and (
             self.last_invocation is None or timestamp > self.last_invocation
         ):

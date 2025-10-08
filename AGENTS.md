@@ -8,7 +8,7 @@
 
 ## CLI Architecture
 - Replace the standalone `main()` argparse entry point with a Typer application (`cxstat/cli.py`).
-- Root callback defines shared options (`--sessions-root`, `--model`, `--encoding`, `--top`, `--show-full`).
+- Root callback defines shared options (`--sessions-root`, `--top`, `--detail`, `--theme`).
 - Commands:
   - `cxstat` (default action mapped to `summary`) prints global usage breakdown across all projects and tools.
   - `cxstat list-project` lists each project (derived from session path) with aggregated token totals and call counts.
@@ -27,7 +27,7 @@
 ## Presentation Layer
 - Build dedicated rendering helpers in `cxstat/view.py` (or similar) that accept aggregation results and produce Rich tables.
 - Use `Console.print` with `Table` objects, configuring column alignment, styles, and optional zebra striping for readability.
-- `summary` command: render counts of total tokens, input/output split, call volume, and top-N rankings (configurable via `--top` / `--show-full`).
+- `summary` command: render counts of total tokens, input/output split, call volume, and top-N rankings (limit via `--top`, colour palette via `--theme`).
 - `list-project` command: render project name/path, combined token totals, per-tool splits, and latest invocation timestamp (if available).
 - Provide graceful empty-state messaging (`[yellow]No data found[/yellow]`) when logs are absent.
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import tiktoken
@@ -14,7 +15,6 @@ from .models import Aggregate, CallRecord, ProjectUsage, UsageReport
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
-    from pathlib import Path
 
 
 def resolve_encoding(model: str | None, encoding_name: str | None) -> Encoding:
@@ -37,6 +37,21 @@ def safe_json_loads(text: str | None) -> object | None:
         return json.loads(text)
     except json.JSONDecodeError:
         return None
+
+
+def canonicalize_project_path(project: str | Path | None) -> str | None:
+    """Return a normalised representation of a project path."""
+    if project is None:
+        return None
+    try:
+        candidate = Path(project).expanduser()
+    except (TypeError, ValueError, RuntimeError):
+        return str(project) if isinstance(project, str) else None
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        resolved = candidate
+    return str(resolved)
 
 
 def iter_session_files(root: Path) -> Iterator[Path]:
@@ -97,7 +112,10 @@ def _process_entry(
     if entry_type == "session_meta":
         payload = entry.get("payload") or {}
         cwd = payload.get("cwd") if isinstance(payload, dict) else None
-        return cwd if isinstance(cwd, str) else project_path
+        if isinstance(cwd, str):
+            normalised = canonicalize_project_path(cwd)
+            return normalised if normalised is not None else project_path
+        return project_path
 
     payload, payload_type = _extract_payload(entry_type, entry)
     if payload_type == "function_call":
@@ -149,6 +167,7 @@ def _record_function_call(
         return
     arguments_raw = _coerce_payload_text(payload.get("arguments"))
     name = payload.get("name", "<unknown>")
+    normalised_project = canonicalize_project_path(project_path)
     record = CallRecord(
         call_id=call_id,
         name=name if isinstance(name, str) else "<unknown>",
@@ -156,7 +175,7 @@ def _record_function_call(
         arguments_obj=safe_json_loads(arguments_raw),
         file_path=path,
         line_no=line_no,
-        project_path=project_path,
+        project_path=normalised_project,
         timestamp=timestamp,
     )
     calls[call_id] = record
@@ -181,7 +200,7 @@ def _record_function_call_output(
         record.file_path = path
         record.line_no = line_no
     if record.project_path is None:
-        record.project_path = project_path
+        record.project_path = canonicalize_project_path(project_path)
     if record.timestamp is None:
         record.timestamp = timestamp
 
@@ -289,18 +308,27 @@ def aggregate_usage(records: Iterable[CallRecord], encoder: Encoding) -> UsageRe
             continue
 
         non_zero_invocations += 1
-        detail_stats[build_detail_key(record)].add(inp, out)
+        detail_key = build_detail_key(record)
         tool_key = build_tool_key(record)
+        provider_key = build_provider_key(record)
+        detail_stats[detail_key].add(inp, out)
         tool_stats[tool_key].add(inp, out)
-        provider_stats[build_provider_key(record)].add(inp, out)
+        provider_stats[provider_key].add(inp, out)
         overall.add(inp, out)
 
-        project_key = record.project_path or "<unknown>"
+        project_key = canonicalize_project_path(record.project_path) or "<unknown>"
         project_usage = projects.get(project_key)
         if project_usage is None:
             project_usage = ProjectUsage(project_path=project_key)
             projects[project_key] = project_usage
-        project_usage.add_invocation(tool_key, inp, out, record.timestamp)
+        project_usage.add_invocation(
+            tool_key,
+            provider_key,
+            detail_key,
+            inp,
+            out,
+            record.timestamp,
+        )
 
     return UsageReport(
         detail_stats=dict(detail_stats),
@@ -315,10 +343,10 @@ def aggregate_usage(records: Iterable[CallRecord], encoder: Encoding) -> UsageRe
 
 def load_report(
     sessions_root: Path,
-    model: str | None = None,
-    encoding_name: str | None = None,
+    *,
+    encoder: Encoding | None = None,
 ) -> UsageReport:
     """Convenience helper to parse logs and aggregate token usage."""
-    encoder = resolve_encoding(model, encoding_name)
+    resolved_encoder = encoder or resolve_encoding(None, None)
     calls = parse_logs(sessions_root)
-    return aggregate_usage(calls.values(), encoder)
+    return aggregate_usage(calls.values(), resolved_encoder)

@@ -32,7 +32,7 @@ include = [
 ]
 
 [project.scripts]
-cxstat = "cxstat.cli:app"
+cxstat = "cxstat.cli:run"
 
 [tool.pyright]
 include = ["cxstat"]
