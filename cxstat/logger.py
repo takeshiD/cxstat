@@ -5,7 +5,6 @@ from rich.logging import RichHandler
 
 logger = logging.getLogger("cxstat")
 FORMAT = "%(message)s"
-# FORMAT = "%(asctime)-15s - %(levelname)s - %(message)s"
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "WARNING"),
     format=FORMAT,

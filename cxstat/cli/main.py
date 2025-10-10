@@ -1,4 +1,4 @@
-"""Typer-based CLI entry point for cxstat."""
+"""CLI entry point for cxstat."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ import typer
 from rich.console import Console
 from typer.main import get_command
 
-from .logger import logger
-from .service import canonicalize_project_path, load_report
-from .view import (
+from cxstat.logger import logger
+from cxstat.service import canonicalize_project_path, load_report
+from cxstat.view import (
     get_theme_names,
     render_project_list,
     render_project_usage,
@@ -26,8 +26,8 @@ from .view import (
 logger = logger.getChild("cli")
 
 if TYPE_CHECKING:
-    from .models import UsageReport
-    from .view import Theme
+    from cxstat.models import UsageReport
+    from cxstat.view import Theme
 
 DEFAULT_SESSIONS_ROOT = Path.home() / ".codex" / "sessions"
 _STATE_ERROR_MESSAGE = "Internal error: application state not initialised."

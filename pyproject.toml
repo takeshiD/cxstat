@@ -35,7 +35,7 @@ build-backend = "hatchling.build"
 include = ["/README.md", "/cxstat"]
 
 [project.scripts]
-cxstat = "cxstat.cli:run"
+cxstat = "cxstat.cli.main:run"
 
 [tool.pyright]
 include = ["cxstat"]

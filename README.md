@@ -14,25 +14,34 @@ Analytics Shell call and MCP call of token usage or Codex
 - **Project breakdown** - aggregate counts per workspace, including the latest invocation timestamp.
 - **Zero-noise defaults** - ignores empty invocations while keeping total call counts for context.
 
+
 ## Installation
 cxstat targets Python 3.12+. Install from source with your preferred workflow:
 
+
+### QuickStart
+for codex
 ```bash
-# using uvx
+# use uvx
 uvx cxstat
 
-# using uv
-uv tool install cxstat
+# use pipx
+pipx cxstat
+```
 
-# or pip
-pip install cxstat
+for claude code
+```bash
+# use uvx
+uvx cxstat claude
+
+# use pipx
+pipx cxstat cluade
 ```
 
 
-## Quick Start
-Analyze your Codex CLI history in seconds:
+## Usage
 
-### Summarise every project tool token usage
+### Summarise all project tool token usage
 collected under the default sessions root (`~/.codex/sessions`)
 
 ```bash
