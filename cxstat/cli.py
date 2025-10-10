@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
+from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -50,7 +51,7 @@ def _version_callback(value: bool | None) -> bool:  # noqa: FBT001
     """Display the CLI version when the eager flag is provided."""
     if value:
         console = Console()
-        console.print(get_package_version())
+        console.print(f"{version(__package__)}")  # type: ignore
         raise typer.Exit()  # noqa: RSE102
     return bool(value)
 
@@ -135,6 +136,7 @@ def resolve_report(state: AppState) -> UsageReport:
             state.report = load_report(state.sessions_root)
         except FileNotFoundError as exc:  # pragma: no cover - user-facing branch
             state.console.print(f"[red]{exc}[/red]")
+            logger.error(f"{exc}")
             raise typer.Exit(code=2) from exc
     return state.report
 

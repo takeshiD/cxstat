@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import json
-import tomllib
 from collections import defaultdict
-from datetime import datetime
-from importlib import metadata, resources
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,31 +21,6 @@ from .models import Aggregate, CallRecord, ProjectUsage, UsageReport
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
-
-
-def get_package_version(project_name: str = "cxstat") -> str:
-    """Return the package version, falling back to pyproject metadata when needed."""
-    try:
-        return metadata.version(project_name)
-    except metadata.PackageNotFoundError:
-        try:
-            resource_ref = resources.files(project_name)
-        except (ModuleNotFoundError, AttributeError):
-            package_root = Path(__file__).resolve().parent
-        else:
-            with resources.as_file(resource_ref) as resolved_path:
-                package_root = Path(resolved_path)
-        pyproject_path = package_root.parent / "pyproject.toml"
-        if not pyproject_path.exists():
-            return "unknown"
-        try:
-            with pyproject_path.open("rb") as handle:
-                data = tomllib.load(handle)
-        except (OSError, tomllib.TOMLDecodeError):
-            return "unknown"
-        project_meta = data.get("project", {})
-        version = project_meta.get("version")
-        return str(version) if version else "unknown"
 
 
 def resolve_encoding(model: str | None, encoding_name: str | None) -> Encoding:
@@ -108,14 +80,27 @@ def parse_logs(root: Path) -> dict[str, CallRecord]:
 
 def _parse_session_file(path: Path, calls: dict[str, CallRecord]) -> None:
     project_path: str | None = None
-    for line_no, entry in _iter_json_entries(path):
-        project_path = _process_entry(
-            entry,
-            calls=calls,
-            path=path,
-            line_no=line_no,
-            project_path=project_path,
-        )
+    for line_no, entry in _iter_log_entries(path):
+        if isinstance(entry, SessionMetaEntry):
+            project_path = _update_project_path(entry, project_path)
+            continue
+        if isinstance(entry, FunctionCallEntry):
+            _record_function_call(
+                entry,
+                calls=calls,
+                path=path,
+                line_no=line_no,
+                project_path=project_path,
+            )
+            continue
+        if isinstance(entry, FunctionCallOutputEntry):
+            _record_function_call_output(
+                entry,
+                calls=calls,
+                path=path,
+                line_no=line_no,
+                project_path=project_path,
+            )
 
 
 def _iter_json_entries(path: Path) -> Iterator[tuple[int, dict[str, object]]]:
@@ -131,104 +116,39 @@ def _iter_json_entries(path: Path) -> Iterator[tuple[int, dict[str, object]]]:
                 yield line_no, entry
 
 
-def _process_entry(
-    entry: dict[str, object],
-    *,
-    calls: dict[str, CallRecord],
-    path: Path,
-    line_no: int,
-    project_path: str | None,
-) -> str | None:
-    entry_type = entry.get("type")
-    raw_timestamp = entry.get("timestamp")
-    timestamp = parse_timestamp(raw_timestamp if isinstance(raw_timestamp, str) else None)
-
-    if entry_type == "session_meta":
-        payload = entry.get("payload") or {}
-        cwd = payload.get("cwd") if isinstance(payload, dict) else None
-        if isinstance(cwd, str):
-            normalised = canonicalize_project_path(cwd)
-            return normalised if normalised is not None else project_path
-        return project_path
-
-    payload, payload_type = _extract_payload(entry_type, entry)
-    if payload_type == "function_call":
-        _record_function_call(
-            payload,
-            calls=calls,
-            path=path,
-            line_no=line_no,
-            project_path=project_path,
-            timestamp=timestamp,
-        )
-    elif payload_type == "function_call_output":
-        _record_function_call_output(
-            payload,
-            calls=calls,
-            path=path,
-            line_no=line_no,
-            project_path=project_path,
-            timestamp=timestamp,
-        )
-    return project_path
-
-
-def _extract_payload(
-    entry_type: object,
-    entry: dict[str, object],
-) -> tuple[dict[str, object], object]:
-    if entry_type == "response_item":
-        payload = entry.get("payload")
-        if isinstance(payload, dict):
-            return payload, payload.get("type")
-        return {}, None
-    if isinstance(entry_type, str):
-        return entry, entry_type
-    return entry, None
-
-
 def _record_function_call(
-    payload: dict[str, object],
+    entry: FunctionCallEntry,
     *,
     calls: dict[str, CallRecord],
     path: Path,
     line_no: int,
     project_path: str | None,
-    timestamp: datetime | None,
 ) -> None:
-    call_id = payload.get("call_id")
-    if not isinstance(call_id, str):
-        return
-    arguments_raw = _coerce_payload_text(payload.get("arguments"))
-    name = payload.get("name", "<unknown>")
     normalised_project = canonicalize_project_path(project_path)
+    arguments_raw = _coerce_payload_text(entry.arguments)
     record = CallRecord(
-        call_id=call_id,
-        name=name if isinstance(name, str) else "<unknown>",
+        call_id=entry.call_id,
+        name=entry.name or "<unknown>",
         arguments_raw=arguments_raw,
         arguments_obj=safe_json_loads(arguments_raw),
         file_path=path,
         line_no=line_no,
         project_path=normalised_project,
-        timestamp=timestamp,
+        timestamp=entry.timestamp,
     )
-    calls[call_id] = record
+    calls[entry.call_id] = record
 
 
 def _record_function_call_output(
-    payload: dict[str, object],
+    entry: FunctionCallOutputEntry,
     *,
     calls: dict[str, CallRecord],
     path: Path,
     line_no: int,
     project_path: str | None,
-    timestamp: datetime | None,
 ) -> None:
-    call_id = payload.get("call_id")
-    if not isinstance(call_id, str):
-        return
-    record = calls.setdefault(call_id, CallRecord(call_id=call_id, name="<unknown>"))
-    record.output_raw = _coerce_payload_text(payload.get("output"))
+    record = calls.setdefault(entry.call_id, CallRecord(call_id=entry.call_id, name="<unknown>"))
+    record.output_raw = _coerce_payload_text(entry.output)
     record.output_obj = safe_json_loads(record.output_raw)
     if record.file_path is None:
         record.file_path = path
@@ -236,7 +156,23 @@ def _record_function_call_output(
     if record.project_path is None:
         record.project_path = canonicalize_project_path(project_path)
     if record.timestamp is None:
-        record.timestamp = timestamp
+        record.timestamp = entry.timestamp
+
+
+def _iter_log_entries(path: Path) -> Iterator[tuple[int, LogEntry]]:
+    for line_no, raw_entry in _iter_json_entries(path):
+        parsed = parse_log_entry(raw_entry)
+        if parsed is not None:
+            yield line_no, parsed
+
+
+def _update_project_path(entry: SessionMetaEntry, current: str | None) -> str | None:
+    payload = entry.payload
+    cwd = payload.cwd if payload is not None else None
+    if cwd is None:
+        return current
+    normalised = canonicalize_project_path(cwd)
+    return normalised if normalised is not None else current
 
 
 def _coerce_payload_text(value: object) -> str | None:
@@ -245,18 +181,6 @@ def _coerce_payload_text(value: object) -> str | None:
     if isinstance(value, str):
         return value
     return json.dumps(value, ensure_ascii=False)
-
-
-def parse_timestamp(value: str | None) -> datetime | None:
-    """Parse ISO timestamp values tolerant of trailing Z suffixes."""
-    if not value:
-        return None
-    try:
-        if value.endswith("Z"):
-            value = value[:-1] + "+00:00"
-        return datetime.fromisoformat(value)
-    except ValueError:
-        return None
 
 
 def count_tokens(text: str | None, encoder: Encoding) -> int:

@@ -1,7 +1,7 @@
 ![](/docs/images/cxstat_logo.png)
 # cxstat
 
-Token usage analytics for Codex CLI sessions
+Analytics Shell call and MCP call of token usage or Codex
 
 ![](/docs/images/cxstat_no_args.png)
 
@@ -30,7 +30,7 @@ pip install cxstat
 
 
 ## Quick Start
-Analyse your Codex CLI history in seconds:
+Analyze your Codex CLI history in seconds:
 
 ### Summarise every project tool token usage
 collected under the default sessions root (`~/.codex/sessions`)
@@ -134,6 +134,6 @@ The following options are available except for list-project:
 - [ ] Customization of display table
 - [ ] Detailed analysis shell commands(sed, python, node etc...)
 - [ ] Export Data(Json, CSV)
-- [ ] Support of npm iinstall
+- [ ] Support npm
 - [ ] Support ClaudeCode
 - [ ] CI/CD(docs, tests, publish for pypi)
