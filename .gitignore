@@ -11,3 +11,4 @@ wheels/
 .serena
 .ruff_cache
 .envrc
+.pytest_cache

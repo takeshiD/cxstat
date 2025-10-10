@@ -13,6 +13,13 @@ from typing import TYPE_CHECKING
 import tiktoken
 from tiktoken import Encoding
 
+from .log_models import (
+    FunctionCallEntry,
+    FunctionCallOutputEntry,
+    LogEntry,
+    SessionMetaEntry,
+    parse_log_entry,
+)
 from .models import Aggregate, CallRecord, ProjectUsage, UsageReport
 
 if TYPE_CHECKING:

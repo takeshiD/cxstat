@@ -12,7 +12,8 @@ import typer
 from rich.console import Console
 from typer.main import get_command
 
-from .service import canonicalize_project_path, get_package_version, load_report
+from .logger import logger
+from .service import canonicalize_project_path, load_report
 from .view import (
     get_theme_names,
     render_project_list,
@@ -20,6 +21,8 @@ from .view import (
     render_summary,
     resolve_theme,
 )
+
+logger = logger.getChild("cli")
 
 if TYPE_CHECKING:
     from .models import UsageReport
@@ -29,7 +32,7 @@ DEFAULT_SESSIONS_ROOT = Path.home() / ".codex" / "sessions"
 _STATE_ERROR_MESSAGE = "Internal error: application state not initialised."
 
 app = typer.Typer(
-    help="Summarise Codex CLI tool token usage.",
+    help="Analyze Codex CLI tool token usage.",
     add_completion=False,
     invoke_without_command=True,
     context_settings={"ignore_unknown_options": True},
@@ -198,7 +201,7 @@ def summary(state: AppState) -> None:
 
     usage = report.projects.get(target_project)
     if usage is None or usage.totals.total_tokens == 0:
-        state.console.print("project not found")
+        state.console.print(f"[yellow][WARN][/]'{target_project}' is not contained in codex logs.")
         raise typer.Exit(code=1)
 
     render_project_usage(
