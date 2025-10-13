@@ -1,17 +1,13 @@
 """Data models for cxstat token usage aggregation."""
 
-from __future__ import annotations
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from datetime import datetime
-    from pathlib import Path
+from pydantic import BaseModel, Field, NonNegativeInt
 
 
-@dataclass
-class CallRecord:
+class CallRecord(BaseModel):
     """Represents a single tool invocation extracted from Codex session logs."""
 
     call_id: str
@@ -24,15 +20,16 @@ class CallRecord:
     line_no: int | None = None
     project_path: str | None = None
     timestamp: datetime | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
-@dataclass
-class Aggregate:
+class Aggregate(BaseModel):
     """Token usage summary for a given grouping."""
 
-    count: int = 0
-    input_tokens: int = 0
-    output_tokens: int = 0
+    count: NonNegativeInt = Field(default=0)
+    input_tokens: NonNegativeInt = Field(default=0)
+    output_tokens: NonNegativeInt = Field(default=0)
 
     def add(self, inp: int, out: int) -> None:
         """Accumulate token counts for a single invocation."""
@@ -46,16 +43,15 @@ class Aggregate:
         return self.input_tokens + self.output_tokens
 
 
-@dataclass
-class ProjectUsage:
+class ProjectUsage(BaseModel):
     """Aggregate usage statistics for a single project path."""
 
-    project_path: str
-    totals: Aggregate = field(default_factory=Aggregate)
-    tool_totals: dict[str, Aggregate] = field(default_factory=dict)
-    provider_totals: dict[str, Aggregate] = field(default_factory=dict)
-    detail_totals: dict[str, Aggregate] = field(default_factory=dict)
-    last_invocation: datetime | None = None
+    project_path: str = Field(...)
+    totals: Aggregate = Field(default_factory=Aggregate)
+    tool_totals: dict[str, Aggregate] = Field(default_factory=dict)
+    provider_totals: dict[str, Aggregate] = Field(default_factory=dict)
+    detail_totals: dict[str, Aggregate] = Field(default_factory=dict)
+    last_invocation: datetime | None = Field(default=None)
 
     def add_invocation(
         self,
@@ -99,17 +95,16 @@ class ProjectUsage:
         )
 
 
-@dataclass
-class UsageReport:
+class UsageReport(BaseModel):
     """Complete aggregation result for a sessions directory."""
 
-    detail_stats: dict[str, Aggregate]
-    tool_stats: dict[str, Aggregate]
-    provider_stats: dict[str, Aggregate]
-    projects: dict[str, ProjectUsage]
-    total_invocations: int
-    non_zero_invocations: int
-    overall: Aggregate
+    detail_stats: dict[str, Aggregate] = Field(default_factory=dict)
+    tool_stats: dict[str, Aggregate] = Field(default_factory=dict)
+    provider_stats: dict[str, Aggregate] = Field(default_factory=dict)
+    projects: dict[str, ProjectUsage] = Field(default_factory=dict)
+    total_invocations: NonNegativeInt = Field(default=0)
+    non_zero_invocations: NonNegativeInt = Field(default=0)
+    overall: Aggregate = Field(...)
 
     def sorted_stats(self, stats: dict[str, Aggregate]) -> list[tuple[str, Aggregate]]:
         """Return entries sorted by total token usage descending."""

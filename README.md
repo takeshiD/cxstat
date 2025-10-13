@@ -1,7 +1,7 @@
 ![](/docs/images/cxstat_logo.png)
 # cxstat
 
-Token usage analytics for Codex CLI sessions
+Analytics Shell call and MCP call of token usage or Codex
 
 ![](/docs/images/cxstat_no_args.png)
 
@@ -14,25 +14,35 @@ Token usage analytics for Codex CLI sessions
 - **Project breakdown** - aggregate counts per workspace, including the latest invocation timestamp.
 - **Zero-noise defaults** - ignores empty invocations while keeping total call counts for context.
 
+
 ## Installation
 cxstat targets Python 3.12+. Install from source with your preferred workflow:
 
+
+### QuickStart
 ```bash
-# using uvx
+# use uvx
 uvx cxstat
 
-# using uv
-uv tool install cxstat
+# show only specified project(example current directorry)
+uvx cxstat ./
 
-# or pip
-pip install cxstat
+# show detail
+uvx cxstat --detail
+
+# show detail and top 20 tool calls
+uvx cxstat --detail --top 20
+
+# export json for tool usage
+uvx cxstat --json
+
+# filtering by jq
+uvx cxstat --json | jq
 ```
 
+## Usage
 
-## Quick Start
-Analyse your Codex CLI history in seconds:
-
-### Summarise every project tool token usage
+### Summarise all project tool token usage
 collected under the default sessions root (`~/.codex/sessions`)
 
 ```bash
@@ -134,6 +144,6 @@ The following options are available except for list-project:
 - [ ] Customization of display table
 - [ ] Detailed analysis shell commands(sed, python, node etc...)
 - [ ] Export Data(Json, CSV)
-- [ ] Support of npm iinstall
+- [ ] Support npm
 - [ ] Support ClaudeCode
 - [ ] CI/CD(docs, tests, publish for pypi)

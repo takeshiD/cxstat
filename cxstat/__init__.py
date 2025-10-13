@@ -1,5 +1,5 @@
 """cxstat package exports."""
 
-from .cli import app
+from importlib.metadata import version
 
-__all__ = ["app"]
+__version__ = version(__package__)  # type: ignore

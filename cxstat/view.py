@@ -1,118 +1,14 @@
 """Rendering helpers using Rich for cxstat CLI output."""
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from datetime import datetime
 
 from rich import box
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-if TYPE_CHECKING:
-    from datetime import datetime
-
-    from .models import Aggregate, ProjectUsage, UsageReport
-
-
-@dataclass(frozen=True)
-class Theme:
-    """Colour palette applied across CLI tables and messages."""
-
-    header_style: str
-    label_style: str
-    highlight_label_style: str
-    total_style: str
-    input_style: str
-    output_style: str
-    count_style: str
-    info_style: str
-    warning_style: str
-    accent_style: str
-    row_styles: tuple[str, ...] | None = None
-
-
-THEMES: dict[str, Theme] = {
-    "default": Theme(
-        header_style="bold cyan",
-        label_style="white",
-        highlight_label_style="bold white",
-        total_style="green",
-        input_style="white",
-        output_style="white",
-        count_style="yellow",
-        info_style="bold white",
-        warning_style="yellow",
-        accent_style="bold",
-        row_styles=None,
-    ),
-    "contrast": Theme(
-        header_style="bold magenta",
-        label_style="white",
-        highlight_label_style="bold magenta",
-        total_style="bright_cyan",
-        input_style="white",
-        output_style="white",
-        count_style="bright_yellow",
-        info_style="bold bright_white",
-        warning_style="bright_yellow",
-        accent_style="bold magenta",
-        row_styles=("none", "dim"),
-    ),
-    "mono": Theme(
-        header_style="bold white",
-        label_style="white",
-        highlight_label_style="bold white",
-        total_style="white",
-        input_style="white",
-        output_style="white",
-        count_style="white",
-        info_style="bold white",
-        warning_style="white",
-        accent_style="bold white",
-        row_styles=None,
-    ),
-    "monokai": Theme(
-        header_style="bold #66D9EF",
-        label_style="#F8F8F2",
-        highlight_label_style="bold #AE81FF",
-        total_style="#A6E22E",
-        input_style="#E6DB74",
-        output_style="#66D9EF",
-        count_style="#FD971F",
-        info_style="#F8F8F2",
-        warning_style="#F92672",
-        accent_style="bold #F92672",
-        row_styles=None,
-    ),
-    "dracura": Theme(
-        header_style="bold #BD93F9",
-        label_style="#F8F8F2",
-        highlight_label_style="bold #8BE9FD",
-        total_style="#50FA7B",
-        input_style="#F1FA8C",
-        output_style="#8BE9FD",
-        count_style="#FFB86C",
-        info_style="#6272A4",
-        warning_style="#FF5555",
-        accent_style="bold #FF79C6",
-        row_styles=None,
-    ),
-    "ayu": Theme(
-        header_style="bold #FFCC66",
-        label_style="#CCCAC2",
-        highlight_label_style="bold #73D0FF",
-        total_style="#87D96C",
-        input_style="#FFAD66",
-        output_style="#5CCFE6",
-        count_style="#FFD173",
-        info_style="#707A8C",
-        warning_style="#FF6666",
-        accent_style="bold #FFCC66",
-        row_styles=None,
-    ),
-}
+from cxstat.models import Aggregate, ProjectUsage, UsageReport
+from cxstat.theme import THEMES, CxStatTheme
 
 
 def get_theme_names() -> tuple[str, ...]:
@@ -120,7 +16,7 @@ def get_theme_names() -> tuple[str, ...]:
     return tuple(sorted(THEMES))
 
 
-def resolve_theme(name: str) -> Theme:
+def resolve_theme(name: str) -> CxStatTheme:
     """Return the colour palette for the requested theme name."""
     key = name.lower()
     try:
@@ -137,13 +33,18 @@ def render_summary(
     top_n: int | None,
     detail: bool,
     console: Console | None = None,
-    theme: Theme,
+    theme: CxStatTheme,
 ) -> None:
     """Render global aggregate tables for the provided usage report."""
     console = console or Console()
 
     if report.total_invocations == 0:
-        console.print(Text("No tool invocations found in the given sessions directory.", style=theme.warning_style))
+        console.print(
+            Text(
+                "No tool invocations found in the given sessions directory.",
+                style=theme.warning_style,
+            )
+        )
         return
 
     if detail:
@@ -156,7 +57,10 @@ def render_summary(
         totals = Text("Total tokens:", style=theme.accent_style)
         totals.append(f" {report.overall.total_tokens:,} ", style=theme.total_style)
         totals.append(
-            f"(input {report.overall.input_tokens:,} / output {report.overall.output_tokens:,}).",
+            (
+                f"(input {report.overall.input_tokens:,} / "
+                f"output {report.overall.output_tokens:,})."
+            ),
             style=theme.info_style,
         )
         console.print(totals)
@@ -194,14 +98,16 @@ def render_project_list(
     report: UsageReport,
     *,
     console: Console | None = None,
-    theme: Theme,
+    theme: CxStatTheme,
 ) -> None:
     """Render a table of aggregated totals grouped by project path."""
     console = console or Console()
     rows = list(report.iter_projects())
 
     if not rows:
-        console.print(Text("No projects with token usage found.", style=theme.warning_style))
+        console.print(
+            Text("No projects with token usage found.", style=theme.warning_style)
+        )
         return
 
     table = Table(
@@ -241,13 +147,18 @@ def render_project_usage(
     console: Console | None = None,
     top_n: int | None = None,
     detail: bool,
-    theme: Theme,
+    theme: CxStatTheme,
 ) -> None:
     """Render detailed token usage for a single project."""
     console = console or Console()
 
     if usage.totals.count == 0:
-        console.print(Text("No token usage found for the specified project.", style=theme.warning_style))
+        console.print(
+            Text(
+                "No token usage found for the specified project.",
+                style=theme.warning_style,
+            )
+        )
         return
 
     project_line = Text("Project:", style=theme.accent_style)
@@ -257,14 +168,19 @@ def render_project_usage(
     totals_line = Text("Total tokens:", style=theme.accent_style)
     totals_line.append(f" {usage.totals.total_tokens:,} ", style=theme.total_style)
     totals_line.append(
-        f"(input {usage.totals.input_tokens:,} / output {usage.totals.output_tokens:,})",
+        (
+            f"(input {usage.totals.input_tokens:,} / "
+            f"output {usage.totals.output_tokens:,})"
+        ),
         style=theme.info_style,
     )
     totals_line.append(f" | calls {usage.totals.count}", style=theme.count_style)
     console.print(totals_line)
     if usage.last_invocation is not None:
         last_line = Text("Last invocation:", style=theme.accent_style)
-        last_line.append(f" {format_timestamp(usage.last_invocation)}", style=theme.label_style)
+        last_line.append(
+            f" {format_timestamp(usage.last_invocation)}", style=theme.label_style
+        )
         console.print(last_line)
 
     render_aggregate_table(
@@ -303,7 +219,7 @@ def render_aggregate_table(
     console: Console,
     top_n: int | None,
     highlight_tool: bool = False,
-    theme: Theme,
+    theme: CxStatTheme,
 ) -> None:
     """Render a generic aggregate table sorted by total tokens."""
     items = sorted(

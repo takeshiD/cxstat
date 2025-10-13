@@ -1,47 +1,24 @@
 """Core services for parsing Codex CLI session logs and aggregating token usage."""
 
-from __future__ import annotations
-
 import json
-import tomllib
-from collections import defaultdict
-from datetime import datetime
-from importlib import metadata, resources
+from collections import defaultdict, deque
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import tiktoken
 from tiktoken import Encoding
 
-from .models import Aggregate, CallRecord, ProjectUsage, UsageReport
+from cxstat.log_models import (
+    FunctionCallEntry,
+    FunctionCallOutputEntry,
+    SessionMetaEntry,
+    parse_log_entry,
+)
+from cxstat.logger import logger
+from cxstat.models import Aggregate, CallRecord, ProjectUsage, UsageReport
+from cxstat.utils import normalize_path
 
-if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
-
-
-def get_package_version(project_name: str = "cxstat") -> str:
-    """Return the package version, falling back to pyproject metadata when needed."""
-    try:
-        return metadata.version(project_name)
-    except metadata.PackageNotFoundError:
-        try:
-            resource_ref = resources.files(project_name)
-        except (ModuleNotFoundError, AttributeError):
-            package_root = Path(__file__).resolve().parent
-        else:
-            with resources.as_file(resource_ref) as resolved_path:
-                package_root = Path(resolved_path)
-        pyproject_path = package_root.parent / "pyproject.toml"
-        if not pyproject_path.exists():
-            return "unknown"
-        try:
-            with pyproject_path.open("rb") as handle:
-                data = tomllib.load(handle)
-        except (OSError, tomllib.TOMLDecodeError):
-            return "unknown"
-        project_meta = data.get("project", {})
-        version = project_meta.get("version")
-        return str(version) if version else "unknown"
+logger = logger.getChild("service")
 
 
 def resolve_encoding(model: str | None, encoding_name: str | None) -> Encoding:
@@ -66,170 +43,77 @@ def safe_json_loads(text: str | None) -> object | None:
         return None
 
 
-def canonicalize_project_path(project: str | Path | None) -> str | None:
-    """Return a normalised representation of a project path."""
-    if project is None:
-        return None
-    try:
-        candidate = Path(project).expanduser()
-    except (TypeError, ValueError, RuntimeError):
-        return str(project) if isinstance(project, str) else None
-    try:
-        resolved = candidate.resolve()
-    except OSError:
-        resolved = candidate
-    return str(resolved)
-
-
-def iter_session_files(root: Path) -> Iterator[Path]:
-    """Yield all JSONL session files under the given directory sorted by name."""
+def parse_logs(root: Path) -> dict[str, CallRecord]:
+    """Parse session logs and return call records keyed by call_id."""
     if not root.exists():
         message = f"sessions directory not found: {root}"
         raise FileNotFoundError(message)
+    calls: dict[str, CallRecord] = {}
     for path in sorted(root.rglob("*.jsonl")):
         if path.is_file():
-            yield path
-
-
-def parse_logs(root: Path) -> dict[str, CallRecord]:
-    """Parse session logs and return call records keyed by call_id."""
-    calls: dict[str, CallRecord] = {}
-    for path in iter_session_files(root):
-        _parse_session_file(path, calls)
+            calls.update(_parse_session_file(path))
     return calls
 
 
-def _parse_session_file(path: Path, calls: dict[str, CallRecord]) -> None:
+def _parse_session_file(path: Path) -> dict[str, CallRecord]:
     project_path: str | None = None
-    for line_no, entry in _iter_json_entries(path):
-        project_path = _process_entry(
-            entry,
-            calls=calls,
-            path=path,
-            line_no=line_no,
-            project_path=project_path,
-        )
+    calls: dict[str, CallRecord] = dict()
+    for line_no, raw_entry in _iter_json_entries(path):
+        entry = parse_log_entry(raw_entry)
+        match entry:
+            case SessionMetaEntry(type=_, payload=payload):
+                if payload is None:
+                    continue
+                new_project_path = payload.cwd if payload.cwd is not None else None
+                project_path = new_project_path
+                continue
+            case FunctionCallEntry(
+                type=_, call_id=call_id, name=name, arguments=arguments
+            ):
+                normalised_project = normalize_path(project_path)
+                arguments_raw = _coerce_payload_text(arguments)
+                record = CallRecord(
+                    call_id=call_id,
+                    name=name or "<unknown>",
+                    arguments_raw=arguments_raw,
+                    arguments_obj=safe_json_loads(arguments_raw),
+                    file_path=path,
+                    line_no=line_no,
+                    project_path=normalised_project,
+                    timestamp=entry.timestamp,
+                )
+                calls[call_id] = record
+                continue
+            case FunctionCallOutputEntry(type=_, call_id=call_id, output=output):
+                record = calls.setdefault(
+                    call_id, CallRecord(call_id=call_id, name="<unknown>")
+                )
+                record.output_raw = _coerce_payload_text(output)
+                record.output_obj = safe_json_loads(record.output_raw)
+                if record.file_path is None:
+                    record.file_path = path
+                    record.line_no = line_no
+                if record.project_path is None:
+                    record.project_path = normalize_path(project_path)
+                if record.timestamp is None:
+                    record.timestamp = entry.timestamp
+                continue
+    return calls
 
 
 def _iter_json_entries(path: Path) -> Iterator[tuple[int, dict[str, object]]]:
     with path.open("r", encoding="utf-8") as handle:
         for line_no, line in enumerate(handle, start=1):
             if not line.strip():
+                logger.debug(f"json line empty: {str(path)} line={line_no}")
                 continue
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
+                logger.warning(f"json decode failed: {str(path)} line={line_no}")
                 continue
             if isinstance(entry, dict):
                 yield line_no, entry
-
-
-def _process_entry(
-    entry: dict[str, object],
-    *,
-    calls: dict[str, CallRecord],
-    path: Path,
-    line_no: int,
-    project_path: str | None,
-) -> str | None:
-    entry_type = entry.get("type")
-    raw_timestamp = entry.get("timestamp")
-    timestamp = parse_timestamp(raw_timestamp if isinstance(raw_timestamp, str) else None)
-
-    if entry_type == "session_meta":
-        payload = entry.get("payload") or {}
-        cwd = payload.get("cwd") if isinstance(payload, dict) else None
-        if isinstance(cwd, str):
-            normalised = canonicalize_project_path(cwd)
-            return normalised if normalised is not None else project_path
-        return project_path
-
-    payload, payload_type = _extract_payload(entry_type, entry)
-    if payload_type == "function_call":
-        _record_function_call(
-            payload,
-            calls=calls,
-            path=path,
-            line_no=line_no,
-            project_path=project_path,
-            timestamp=timestamp,
-        )
-    elif payload_type == "function_call_output":
-        _record_function_call_output(
-            payload,
-            calls=calls,
-            path=path,
-            line_no=line_no,
-            project_path=project_path,
-            timestamp=timestamp,
-        )
-    return project_path
-
-
-def _extract_payload(
-    entry_type: object,
-    entry: dict[str, object],
-) -> tuple[dict[str, object], object]:
-    if entry_type == "response_item":
-        payload = entry.get("payload")
-        if isinstance(payload, dict):
-            return payload, payload.get("type")
-        return {}, None
-    if isinstance(entry_type, str):
-        return entry, entry_type
-    return entry, None
-
-
-def _record_function_call(
-    payload: dict[str, object],
-    *,
-    calls: dict[str, CallRecord],
-    path: Path,
-    line_no: int,
-    project_path: str | None,
-    timestamp: datetime | None,
-) -> None:
-    call_id = payload.get("call_id")
-    if not isinstance(call_id, str):
-        return
-    arguments_raw = _coerce_payload_text(payload.get("arguments"))
-    name = payload.get("name", "<unknown>")
-    normalised_project = canonicalize_project_path(project_path)
-    record = CallRecord(
-        call_id=call_id,
-        name=name if isinstance(name, str) else "<unknown>",
-        arguments_raw=arguments_raw,
-        arguments_obj=safe_json_loads(arguments_raw),
-        file_path=path,
-        line_no=line_no,
-        project_path=normalised_project,
-        timestamp=timestamp,
-    )
-    calls[call_id] = record
-
-
-def _record_function_call_output(
-    payload: dict[str, object],
-    *,
-    calls: dict[str, CallRecord],
-    path: Path,
-    line_no: int,
-    project_path: str | None,
-    timestamp: datetime | None,
-) -> None:
-    call_id = payload.get("call_id")
-    if not isinstance(call_id, str):
-        return
-    record = calls.setdefault(call_id, CallRecord(call_id=call_id, name="<unknown>"))
-    record.output_raw = _coerce_payload_text(payload.get("output"))
-    record.output_obj = safe_json_loads(record.output_raw)
-    if record.file_path is None:
-        record.file_path = path
-        record.line_no = line_no
-    if record.project_path is None:
-        record.project_path = canonicalize_project_path(project_path)
-    if record.timestamp is None:
-        record.timestamp = timestamp
 
 
 def _coerce_payload_text(value: object) -> str | None:
@@ -238,18 +122,6 @@ def _coerce_payload_text(value: object) -> str | None:
     if isinstance(value, str):
         return value
     return json.dumps(value, ensure_ascii=False)
-
-
-def parse_timestamp(value: str | None) -> datetime | None:
-    """Parse ISO timestamp values tolerant of trailing Z suffixes."""
-    if not value:
-        return None
-    try:
-        if value.endswith("Z"):
-            value = value[:-1] + "+00:00"
-        return datetime.fromisoformat(value)
-    except ValueError:
-        return None
 
 
 def count_tokens(text: str | None, encoder: Encoding) -> int:
@@ -282,38 +154,110 @@ def build_provider_key(record: CallRecord) -> str:
 def format_shell_command(args_obj: object, max_len: int = 80) -> str:
     """Produce a readable label for shell command invocations."""
     prefix = "shell"
-    default_label = f"{prefix} | <unknown>"
-
+    default_label = f"[green]{prefix}[/]([bright_black]<unknown>[/])"
     if not isinstance(args_obj, dict):
         label = default_label
     else:
-        cmd = args_obj.get("command")
-        if isinstance(cmd, list):
-            command_text = " ".join(str(part) for part in cmd)
-            label = f"{prefix} | {command_text}" if command_text else prefix
-        elif isinstance(cmd, str):
-            label = f"{prefix} | {cmd}" if cmd else prefix
+        command = args_obj.get("command")
+        if isinstance(command, list):
+            command = deque(command)
+            command_list: list[str] = []
+            if command[0] == "bash":
+                command.popleft()
+            if command[0] == "-lc":
+                command.popleft()
+            while len(command) > 0:
+                cmd = command.popleft()
+                logger.debug(f'command: "{cmd}"')
+                commands = deque(cmd.split(" "))
+                ignore_option_commands = {
+                    "apply_patch",
+                    "awk",
+                    "head",
+                    "tail",
+                    "ls",
+                    "nl",
+                    "cat",
+                    "rg",
+                    "python",
+                    "python3",
+                    "pip",
+                    "pip3",
+                    "node",
+                    "grep",
+                    "pyright",
+                    "cp",
+                    "rm",
+                    "mkdir",
+                    "find",
+                    "fd",
+                    "diff",
+                    "jq",
+                    "tomlq",
+                    "tmux",
+                    ".",
+                    "wc",
+                    "printf",
+                    "mv",
+                    "chmod",
+                    "echo",
+                    "rustfmt",
+                }
+                contain_option_commands = {"cargo", "ruff", "uv", "git", "sed"}
+                while len(commands) > 0:
+                    c = commands.popleft()
+                    if c.startswith("<<"):  # heardocument
+                        command.clear()
+                        break
+                    if c == "-":
+                        command.clear()
+                        break
+                    if c in ignore_option_commands:
+                        if c == ".":
+                            command_list.append("source")
+                        else:
+                            command_list.append(c)
+                        command.clear()
+                        break
+                    if c in contain_option_commands:
+                        command_list.append(c)
+                        if len(commands) > 0:
+                            c = commands.popleft()
+                            if c is not None:
+                                command_list.append(c)
+                            command.clear()
+                        break
+                    command_list.append(c)
+            command_text = " ".join(command_list)
+            label = f"[green]{prefix}[/]({command_text})" if command_text else prefix
+        elif isinstance(command, str):
+            label = f"[green]{prefix}[/]([gray]{command}[/])" if command else prefix
         else:
             label = default_label
-
     if len(label) > max_len:
         trim_at = max(max_len - 3, len(prefix) + 3)
         label = label[:trim_at] + "..."
-
     return label
 
 
 def summarize_args(name: str, args_obj: object, max_len: int = 120) -> str:
     """Summarise tool arguments for detail-level reporting."""
-    if args_obj is None:
+    tool = name.split("__")
+    if len(tool) > 1:
+        tool_name = tool[0]
+        tool_arg = tool[1]
+        return f"[yellow]{tool_name}[/]({tool_arg})"
+    else:
         return name
-    try:
-        serialized = json.dumps(args_obj, ensure_ascii=False, sort_keys=True)
-    except (TypeError, ValueError):
-        serialized = str(args_obj)
-    if len(serialized) > max_len:
-        serialized = serialized[: max_len - 3] + "..."
-    return f"{name} | {serialized}" if serialized else name
+    # if args_obj is None:
+    #     return name
+    # try:
+    #     serialized = json.dumps(args_obj, ensure_ascii=False, sort_keys=True)
+    # except (TypeError, ValueError):
+    #     serialized = str(args_obj)
+    # if len(serialized) > max_len:
+    #     serialized = serialized[: max_len - 3] + "..."
+    # return f"{name} | {serialized}" if serialized else name
 
 
 def aggregate_usage(records: Iterable[CallRecord], encoder: Encoding) -> UsageReport:
@@ -329,8 +273,16 @@ def aggregate_usage(records: Iterable[CallRecord], encoder: Encoding) -> UsageRe
 
     for record in records:
         total_invocations += 1
-        inp = count_tokens(record.arguments_raw, encoder)
-        out = count_tokens(record.output_raw, encoder)
+        inp = (
+            record.input_tokens
+            if record.input_tokens is not None
+            else count_tokens(record.arguments_raw, encoder)
+        )
+        out = (
+            record.output_tokens
+            if record.output_tokens is not None
+            else count_tokens(record.output_raw, encoder)
+        )
         if inp == 0 and out == 0:
             continue
 
@@ -343,7 +295,7 @@ def aggregate_usage(records: Iterable[CallRecord], encoder: Encoding) -> UsageRe
         provider_stats[provider_key].add(inp, out)
         overall.add(inp, out)
 
-        project_key = canonicalize_project_path(record.project_path) or "<unknown>"
+        project_key = normalize_path(record.project_path) or "<unknown>"
         project_usage = projects.get(project_key)
         if project_usage is None:
             project_usage = ProjectUsage(project_path=project_key)
@@ -375,5 +327,5 @@ def load_report(
 ) -> UsageReport:
     """Convenience helper to parse logs and aggregate token usage."""
     resolved_encoder = encoder or resolve_encoding(None, None)
-    calls = parse_logs(sessions_root)
+    calls: dict[str, CallRecord] = parse_logs(sessions_root)
     return aggregate_usage(calls.values(), resolved_encoder)
