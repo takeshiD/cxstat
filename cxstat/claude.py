@@ -75,7 +75,7 @@ def _iter_claude_session_files(root: Path):
 
 
 def _iter_json_objects(path: Path) -> Iterable[tuple[int, dict[str, object]]]:
-    """Yield JSON objects from a file that may contain JSONL or concatenated JSON docs."""
+    """Yield JSON objects from JSONL files or concatenated JSON blobs."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:  # pragma: no cover - defensive I/O branch

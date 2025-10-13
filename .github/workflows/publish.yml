@@ -1,0 +1,72 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Detect version bump
+        id: version_check
+        run: |
+          python <<'PY'
+          import os
+          import subprocess
+          import tomllib
+          from pathlib import Path
+
+          current = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+          try:
+              previous_contents = subprocess.check_output(["git", "show", "HEAD^:pyproject.toml"], text=True)
+          except subprocess.CalledProcessError:
+              previous_version = None
+          else:
+              previous_version = tomllib.loads(previous_contents)["project"]["version"]
+
+          publish = previous_version != current
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"publish={'true' if publish else 'false'}\n")
+              handle.write(f"current_version={current}\n")
+              handle.write(f"previous_version={previous_version or ''}\n")
+          if previous_version == current:
+              print(f"No version bump detected (still {current}). Skipping publish.")
+          else:
+              print(f"Version bump detected: {previous_version} -> {current}.")
+          PY
+
+      - name: Install build backend
+        if: steps.version_check.outputs.publish == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+
+      - name: Build distributions
+        if: steps.version_check.outputs.publish == 'true'
+        run: python -m build
+
+      - name: Publish to PyPI
+        if: steps.version_check.outputs.publish == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true

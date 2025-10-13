@@ -57,7 +57,10 @@ def render_summary(
         totals = Text("Total tokens:", style=theme.accent_style)
         totals.append(f" {report.overall.total_tokens:,} ", style=theme.total_style)
         totals.append(
-            f"(input {report.overall.input_tokens:,} / output {report.overall.output_tokens:,}).",
+            (
+                f"(input {report.overall.input_tokens:,} / "
+                f"output {report.overall.output_tokens:,})."
+            ),
             style=theme.info_style,
         )
         console.print(totals)
@@ -165,7 +168,10 @@ def render_project_usage(
     totals_line = Text("Total tokens:", style=theme.accent_style)
     totals_line.append(f" {usage.totals.total_tokens:,} ", style=theme.total_style)
     totals_line.append(
-        f"(input {usage.totals.input_tokens:,} / output {usage.totals.output_tokens:,})",
+        (
+            f"(input {usage.totals.input_tokens:,} / "
+            f"output {usage.totals.output_tokens:,})"
+        ),
         style=theme.info_style,
     )
     totals_line.append(f" | calls {usage.totals.count}", style=theme.count_style)

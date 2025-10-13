@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, NonNegativeInt, field_serializer
+from pydantic import BaseModel, Field, NonNegativeInt
 
 
 class CallRecord(BaseModel):
@@ -121,4 +121,3 @@ class UsageReport(BaseModel):
             key=lambda usage: (usage.totals.total_tokens, usage.project_path),
             reverse=True,
         )
-
