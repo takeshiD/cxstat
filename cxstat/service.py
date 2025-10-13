@@ -1,7 +1,7 @@
 """Core services for parsing Codex CLI session logs and aggregating token usage."""
 
 import json
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
@@ -67,12 +67,14 @@ def _parse_session_file(path: Path) -> dict[str, CallRecord]:
                 new_project_path = payload.cwd if payload.cwd is not None else None
                 project_path = new_project_path
                 continue
-            case FunctionCallEntry():
+            case FunctionCallEntry(
+                type=_, call_id=call_id, name=name, arguments=arguments
+            ):
                 normalised_project = normalize_path(project_path)
-                arguments_raw = _coerce_payload_text(entry.arguments)
+                arguments_raw = _coerce_payload_text(arguments)
                 record = CallRecord(
-                    call_id=entry.call_id,
-                    name=entry.name or "<unknown>",
+                    call_id=call_id,
+                    name=name or "<unknown>",
                     arguments_raw=arguments_raw,
                     arguments_obj=safe_json_loads(arguments_raw),
                     file_path=path,
@@ -80,13 +82,13 @@ def _parse_session_file(path: Path) -> dict[str, CallRecord]:
                     project_path=normalised_project,
                     timestamp=entry.timestamp,
                 )
-                calls[entry.call_id] = record
+                calls[call_id] = record
                 continue
-            case FunctionCallOutputEntry():
+            case FunctionCallOutputEntry(type=_, call_id=call_id, output=output):
                 record = calls.setdefault(
-                    entry.call_id, CallRecord(call_id=entry.call_id, name="<unknown>")
+                    call_id, CallRecord(call_id=call_id, name="<unknown>")
                 )
-                record.output_raw = _coerce_payload_text(entry.output)
+                record.output_raw = _coerce_payload_text(output)
                 record.output_obj = safe_json_loads(record.output_raw)
                 if record.file_path is None:
                     record.file_path = path
@@ -152,38 +154,110 @@ def build_provider_key(record: CallRecord) -> str:
 def format_shell_command(args_obj: object, max_len: int = 80) -> str:
     """Produce a readable label for shell command invocations."""
     prefix = "shell"
-    default_label = f"{prefix} | <unknown>"
-
+    default_label = f"[green]{prefix}[/]([bright_black]<unknown>[/])"
     if not isinstance(args_obj, dict):
         label = default_label
     else:
-        cmd = args_obj.get("command")
-        if isinstance(cmd, list):
-            command_text = " ".join(str(part) for part in cmd)
-            label = f"{prefix} | {command_text}" if command_text else prefix
-        elif isinstance(cmd, str):
-            label = f"{prefix} | {cmd}" if cmd else prefix
+        command = args_obj.get("command")
+        if isinstance(command, list):
+            command = deque(command)
+            command_list: list[str] = []
+            if command[0] == "bash":
+                command.popleft()
+            if command[0] == "-lc":
+                command.popleft()
+            while len(command) > 0:
+                cmd = command.popleft()
+                logger.debug(f'command: "{cmd}"')
+                commands = deque(cmd.split(" "))
+                ignore_option_commands = {
+                    "apply_patch",
+                    "awk",
+                    "head",
+                    "tail",
+                    "ls",
+                    "nl",
+                    "cat",
+                    "rg",
+                    "python",
+                    "python3",
+                    "pip",
+                    "pip3",
+                    "node",
+                    "grep",
+                    "pyright",
+                    "cp",
+                    "rm",
+                    "mkdir",
+                    "find",
+                    "fd",
+                    "diff",
+                    "jq",
+                    "tomlq",
+                    "tmux",
+                    ".",
+                    "wc",
+                    "printf",
+                    "mv",
+                    "chmod",
+                    "echo",
+                    "rustfmt",
+                }
+                contain_option_commands = {"cargo", "ruff", "uv", "git", "sed"}
+                while len(commands) > 0:
+                    c = commands.popleft()
+                    if c.startswith("<<"):  # heardocument
+                        command.clear()
+                        break
+                    if c == "-":
+                        command.clear()
+                        break
+                    if c in ignore_option_commands:
+                        if c == ".":
+                            command_list.append("source")
+                        else:
+                            command_list.append(c)
+                        command.clear()
+                        break
+                    if c in contain_option_commands:
+                        command_list.append(c)
+                        if len(commands) > 0:
+                            c = commands.popleft()
+                            if c is not None:
+                                command_list.append(c)
+                            command.clear()
+                        break
+                    command_list.append(c)
+            command_text = " ".join(command_list)
+            label = f"[green]{prefix}[/]({command_text})" if command_text else prefix
+        elif isinstance(command, str):
+            label = f"[green]{prefix}[/]([gray]{command}[/])" if command else prefix
         else:
             label = default_label
-
     if len(label) > max_len:
         trim_at = max(max_len - 3, len(prefix) + 3)
         label = label[:trim_at] + "..."
-
     return label
 
 
 def summarize_args(name: str, args_obj: object, max_len: int = 120) -> str:
     """Summarise tool arguments for detail-level reporting."""
-    if args_obj is None:
+    tool = name.split("__")
+    if len(tool) > 1:
+        tool_name = tool[0]
+        tool_arg = tool[1]
+        return f"[yellow]{tool_name}[/]({tool_arg})"
+    else:
         return name
-    try:
-        serialized = json.dumps(args_obj, ensure_ascii=False, sort_keys=True)
-    except (TypeError, ValueError):
-        serialized = str(args_obj)
-    if len(serialized) > max_len:
-        serialized = serialized[: max_len - 3] + "..."
-    return f"{name} | {serialized}" if serialized else name
+    # if args_obj is None:
+    #     return name
+    # try:
+    #     serialized = json.dumps(args_obj, ensure_ascii=False, sort_keys=True)
+    # except (TypeError, ValueError):
+    #     serialized = str(args_obj)
+    # if len(serialized) > max_len:
+    #     serialized = serialized[: max_len - 3] + "..."
+    # return f"{name} | {serialized}" if serialized else name
 
 
 def aggregate_usage(records: Iterable[CallRecord], encoder: Encoding) -> UsageReport:
