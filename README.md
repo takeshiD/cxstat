@@ -22,22 +22,22 @@ cxstat targets Python 3.12+. Install from source with your preferred workflow:
 ### QuickStart
 ```bash
 # use uvx
-uvx cxstat codex
+uvx cxstat
 
 # show only specified project(example current directorry)
-uvx cxstat codex ./
+uvx cxstat ./
 
 # show detail
-uvx cxstat codex --detail
+uvx cxstat --detail
 
 # show detail and top 20 tool calls
-uvx cxstat codex --detail --top 20
+uvx cxstat --detail --top 20
 
 # export json for tool usage
-uvx cxstat codex --json
+uvx cxstat --json
 
-# filtering jq
-uvx cxstat codex --json | jq
+# filtering by jq
+uvx cxstat --json | jq
 ```
 
 ## Usage

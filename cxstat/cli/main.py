@@ -34,13 +34,22 @@ app = typer.Typer(
 )
 
 
-@app.callback(invoke_without_command=False)
+@app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
     *,
     version: bool = VERSION_OPTION,
+    detail: bool = DETAIL_OPTION,
+    top: int = TOP_OPTION,
+    theme: str = THEME_OPTION,
+    root_path: Path = CODEX_ROOT_OPTION,
+    encoder: str = ENCODER_OPTION,
+    json: bool = JSON_OPTION,
 ) -> None:
-    pass
+    if ctx.invoked_subcommand is None:
+        ctx.params.pop("version")
+        params = ctx.params.copy()
+        codex(**params)
 
 
 @app.command("codex", help="Analyze Codex tool and mcp token usage")
@@ -59,6 +68,7 @@ def codex(
     logger.debug(f"  --top={top}")
     logger.debug(f"  --theme={theme}")
     logger.debug(f"  --root_path={root_path}")
+    logger.debug(f"  --encoder={encoder}")
     logger.debug(f"  --json={json}")
     tiktoken_encoder = tiktoken.get_encoding(encoder)
     report: UsageReport = load_report(root_path.expanduser(), encoder=tiktoken_encoder)
@@ -96,7 +106,7 @@ def codex(
             )
 
 
-@app.command("claude", help="Analyze Claude Code tool and mcp token usage")
+@app.command("claude", help="Analyze Claude Code tool and mcp token usage", hidden=True)
 def claude(
     project_path: Annotated[Path | None, typer.Argument()] = None,
     *,
