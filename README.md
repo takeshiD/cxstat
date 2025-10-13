@@ -20,25 +20,25 @@ cxstat targets Python 3.12+. Install from source with your preferred workflow:
 
 
 ### QuickStart
-for codex
-```bash
-# use uvx (default: codex)
-uvx cxstat
-uvx cxstat codex
-
-# use pipx
-pipx cxstat codex
-```
-
-for claude code
 ```bash
 # use uvx
-uvx cxstat claude
+uvx cxstat codex
 
-# use pipx
-pipx cxstat cluade
+# show only specified project(example current directorry)
+uvx cxstat codex ./
+
+# show detail
+uvx cxstat codex --detail
+
+# show detail and top 20 tool calls
+uvx cxstat codex --detail --top 20
+
+# export json for tool usage
+uvx cxstat codex --json
+
+# filtering jq
+uvx cxstat codex --json | jq
 ```
-
 
 ## Usage
 

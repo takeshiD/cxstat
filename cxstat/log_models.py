@@ -110,7 +110,6 @@ def parse_log_entry(raw: dict[str, Any]) -> LogEntry | None:
             case "response_item":
                 return _parse_response_item(raw)
             case _:
-                logger.debug(f"'{entry_type}' type is undefined.")
                 return None
     except ValidationError:
         logger.debug(f"validate error: {raw}")

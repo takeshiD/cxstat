@@ -70,5 +70,12 @@ TOP_OPTION = typer.Option(
 ENCODER_OPTION = typer.Option(
     "o200k_base",
     "--encoder",
-    help=f"Tiktoken encoder. Available: {''}",
+    help="Tiktoken encoder.",
+)
+
+JSON_OPTION = typer.Option(
+    False,
+    "--json",
+    "-j",
+    help="Export report as json",
 )
