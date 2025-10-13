@@ -1,13 +1,9 @@
 """Data models for cxstat token usage aggregation."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from datetime import datetime
-    from pathlib import Path
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -24,6 +20,8 @@ class CallRecord:
     line_no: int | None = None
     project_path: str | None = None
     timestamp: datetime | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 @dataclass

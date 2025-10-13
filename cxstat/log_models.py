@@ -1,11 +1,13 @@
 """Pydantic models for Codex CLI log entries."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+
+from cxstat.logger import logger
+
+logger = logger.getChild("models")
 
 
 class TimestampedEntry(BaseModel):
@@ -97,35 +99,21 @@ LogEntry = SessionMetaEntry | FunctionCallEntry | FunctionCallOutputEntry
 def parse_log_entry(raw: dict[str, Any]) -> LogEntry | None:
     """Parse a raw log dictionary into a strongly-typed log entry."""
     entry_type = raw.get("type")
-    if entry_type == "session_meta":
-        return _parse_session_meta(raw)
-    if entry_type == "function_call":
-        return _parse_function_call(raw)
-    if entry_type == "function_call_output":
-        return _parse_function_call_output(raw)
-    if entry_type == "response_item":
-        return _parse_response_item(raw)
-    return None
-
-
-def _parse_session_meta(raw: dict[str, Any]) -> SessionMetaEntry | None:
     try:
-        return SessionMetaEntry.model_validate(raw)
+        match entry_type:
+            case "session_meta":
+                return SessionMetaEntry.model_validate(raw)
+            case "function_call":
+                return FunctionCallEntry.model_validate(raw)
+            case "function_call_output":
+                return FunctionCallOutputEntry.model_validate(raw)
+            case "response_item":
+                return _parse_response_item(raw)
+            case _:
+                logger.debug(f"'{entry_type}' type is undefined.")
+                return None
     except ValidationError:
-        return None
-
-
-def _parse_function_call(raw: dict[str, Any]) -> FunctionCallEntry | None:
-    try:
-        return FunctionCallEntry.model_validate(raw)
-    except ValidationError:
-        return None
-
-
-def _parse_function_call_output(raw: dict[str, Any]) -> FunctionCallOutputEntry | None:
-    try:
-        return FunctionCallOutputEntry.model_validate(raw)
-    except ValidationError:
+        logger.debug(f"validate error: {raw}")
         return None
 
 

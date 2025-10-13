@@ -1,26 +1,23 @@
 """Core services for parsing Codex CLI session logs and aggregating token usage."""
 
-from __future__ import annotations
-
 import json
 from collections import defaultdict
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import tiktoken
 from tiktoken import Encoding
 
-from .log_models import (
+from cxstat.log_models import (
     FunctionCallEntry,
     FunctionCallOutputEntry,
-    LogEntry,
     SessionMetaEntry,
     parse_log_entry,
 )
-from .models import Aggregate, CallRecord, ProjectUsage, UsageReport
+from cxstat.logger import logger
+from cxstat.models import Aggregate, CallRecord, ProjectUsage, UsageReport
 
-if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+logger = logger.getChild("service")
 
 
 def resolve_encoding(model: str | None, encoding_name: str | None) -> Encoding:
@@ -60,119 +57,75 @@ def canonicalize_project_path(project: str | Path | None) -> str | None:
     return str(resolved)
 
 
-def iter_session_files(root: Path) -> Iterator[Path]:
-    """Yield all JSONL session files under the given directory sorted by name."""
+def parse_logs(root: Path) -> dict[str, CallRecord]:
+    """Parse session logs and return call records keyed by call_id."""
     if not root.exists():
         message = f"sessions directory not found: {root}"
         raise FileNotFoundError(message)
+    calls: dict[str, CallRecord] = {}
     for path in sorted(root.rglob("*.jsonl")):
         if path.is_file():
-            yield path
-
-
-def parse_logs(root: Path) -> dict[str, CallRecord]:
-    """Parse session logs and return call records keyed by call_id."""
-    calls: dict[str, CallRecord] = {}
-    for path in iter_session_files(root):
-        _parse_session_file(path, calls)
+            calls.update(_parse_session_file(path))
     return calls
 
 
-def _parse_session_file(path: Path, calls: dict[str, CallRecord]) -> None:
+def _parse_session_file(path: Path) -> dict[str, CallRecord]:
     project_path: str | None = None
-    for line_no, entry in _iter_log_entries(path):
-        if isinstance(entry, SessionMetaEntry):
-            project_path = _update_project_path(entry, project_path)
-            continue
-        if isinstance(entry, FunctionCallEntry):
-            _record_function_call(
-                entry,
-                calls=calls,
-                path=path,
-                line_no=line_no,
-                project_path=project_path,
-            )
-            continue
-        if isinstance(entry, FunctionCallOutputEntry):
-            _record_function_call_output(
-                entry,
-                calls=calls,
-                path=path,
-                line_no=line_no,
-                project_path=project_path,
-            )
+    calls: dict[str, CallRecord] = dict()
+    for line_no, raw_entry in _iter_json_entries(path):
+        entry = parse_log_entry(raw_entry)
+        match entry:
+            case SessionMetaEntry(type=_, payload=payload):
+                if payload is None:
+                    continue
+                new_project_path = payload.cwd if payload.cwd is not None else None
+                project_path = new_project_path
+                continue
+            case FunctionCallEntry():
+                normalised_project = canonicalize_project_path(project_path)
+                arguments_raw = _coerce_payload_text(entry.arguments)
+                record = CallRecord(
+                    call_id=entry.call_id,
+                    name=entry.name or "<unknown>",
+                    arguments_raw=arguments_raw,
+                    arguments_obj=safe_json_loads(arguments_raw),
+                    file_path=path,
+                    line_no=line_no,
+                    project_path=normalised_project,
+                    timestamp=entry.timestamp,
+                )
+                calls[entry.call_id] = record
+                continue
+            case FunctionCallOutputEntry():
+                record = calls.setdefault(
+                    entry.call_id, CallRecord(call_id=entry.call_id, name="<unknown>")
+                )
+                record.output_raw = _coerce_payload_text(entry.output)
+                record.output_obj = safe_json_loads(record.output_raw)
+                if record.file_path is None:
+                    record.file_path = path
+                    record.line_no = line_no
+                if record.project_path is None:
+                    record.project_path = canonicalize_project_path(project_path)
+                if record.timestamp is None:
+                    record.timestamp = entry.timestamp
+                continue
+    return calls
 
 
 def _iter_json_entries(path: Path) -> Iterator[tuple[int, dict[str, object]]]:
     with path.open("r", encoding="utf-8") as handle:
         for line_no, line in enumerate(handle, start=1):
             if not line.strip():
+                logger.debug(f"json line empty: {str(path)} line={line_no}")
                 continue
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
+                logger.warning(f"json decode failed: {str(path)} line={line_no}")
                 continue
             if isinstance(entry, dict):
                 yield line_no, entry
-
-
-def _record_function_call(
-    entry: FunctionCallEntry,
-    *,
-    calls: dict[str, CallRecord],
-    path: Path,
-    line_no: int,
-    project_path: str | None,
-) -> None:
-    normalised_project = canonicalize_project_path(project_path)
-    arguments_raw = _coerce_payload_text(entry.arguments)
-    record = CallRecord(
-        call_id=entry.call_id,
-        name=entry.name or "<unknown>",
-        arguments_raw=arguments_raw,
-        arguments_obj=safe_json_loads(arguments_raw),
-        file_path=path,
-        line_no=line_no,
-        project_path=normalised_project,
-        timestamp=entry.timestamp,
-    )
-    calls[entry.call_id] = record
-
-
-def _record_function_call_output(
-    entry: FunctionCallOutputEntry,
-    *,
-    calls: dict[str, CallRecord],
-    path: Path,
-    line_no: int,
-    project_path: str | None,
-) -> None:
-    record = calls.setdefault(entry.call_id, CallRecord(call_id=entry.call_id, name="<unknown>"))
-    record.output_raw = _coerce_payload_text(entry.output)
-    record.output_obj = safe_json_loads(record.output_raw)
-    if record.file_path is None:
-        record.file_path = path
-        record.line_no = line_no
-    if record.project_path is None:
-        record.project_path = canonicalize_project_path(project_path)
-    if record.timestamp is None:
-        record.timestamp = entry.timestamp
-
-
-def _iter_log_entries(path: Path) -> Iterator[tuple[int, LogEntry]]:
-    for line_no, raw_entry in _iter_json_entries(path):
-        parsed = parse_log_entry(raw_entry)
-        if parsed is not None:
-            yield line_no, parsed
-
-
-def _update_project_path(entry: SessionMetaEntry, current: str | None) -> str | None:
-    payload = entry.payload
-    cwd = payload.cwd if payload is not None else None
-    if cwd is None:
-        return current
-    normalised = canonicalize_project_path(cwd)
-    return normalised if normalised is not None else current
 
 
 def _coerce_payload_text(value: object) -> str | None:
@@ -260,8 +213,16 @@ def aggregate_usage(records: Iterable[CallRecord], encoder: Encoding) -> UsageRe
 
     for record in records:
         total_invocations += 1
-        inp = count_tokens(record.arguments_raw, encoder)
-        out = count_tokens(record.output_raw, encoder)
+        inp = (
+            record.input_tokens
+            if record.input_tokens is not None
+            else count_tokens(record.arguments_raw, encoder)
+        )
+        out = (
+            record.output_tokens
+            if record.output_tokens is not None
+            else count_tokens(record.output_raw, encoder)
+        )
         if inp == 0 and out == 0:
             continue
 
@@ -306,5 +267,5 @@ def load_report(
 ) -> UsageReport:
     """Convenience helper to parse logs and aggregate token usage."""
     resolved_encoder = encoder or resolve_encoding(None, None)
-    calls = parse_logs(sessions_root)
+    calls: dict[str, CallRecord] = parse_logs(sessions_root)
     return aggregate_usage(calls.values(), resolved_encoder)
