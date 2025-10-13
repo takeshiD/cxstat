@@ -73,7 +73,7 @@ exclude = [
     "site-packages",
     "venv",
 ]
-line-length = 120
+line-length = 88
 indent-width = 4
 
 [tool.ruff.lint]
@@ -90,3 +90,14 @@ quote-style = "double"
 indent-style = "space"
 docstring-code-format = false
 docstring-code-line-length = "dynamic"
+
+[tool.pytest.ini_options]
+addopts = "-ra -v"
+testpaths = [
+    "tests"
+]
+
+[dependency-groups]
+dev = [
+    "bpython>=0.25",
+]

@@ -22,11 +22,12 @@ cxstat targets Python 3.12+. Install from source with your preferred workflow:
 ### QuickStart
 for codex
 ```bash
-# use uvx
+# use uvx (default: codex)
 uvx cxstat
+uvx cxstat codex
 
 # use pipx
-pipx cxstat
+pipx cxstat codex
 ```
 
 for claude code
