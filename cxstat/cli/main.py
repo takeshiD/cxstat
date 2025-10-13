@@ -34,34 +34,17 @@ app = typer.Typer(
 )
 
 
-@app.callback(invoke_without_command=True)
+@app.callback(invoke_without_command=False)
 def main(
     ctx: typer.Context,
-    project_path: Annotated[Path | None, typer.Argument()] = None,
     *,
     version: bool = VERSION_OPTION,
-    detail: bool = DETAIL_OPTION,
-    top: int = TOP_OPTION,
-    theme: str = THEME_OPTION,
-    root_path: Path = CODEX_ROOT_OPTION,
-    encoder: str = ENCODER_OPTION,
-    json: bool = JSON_OPTION,
 ) -> None:
-    if ctx.invoked_subcommand is None:
-        codex(
-            ctx,
-            project_path,
-            detail=detail,
-            top=top,
-            theme=theme,
-            root_path=root_path,
-            encoder=encoder,
-        )
+    pass
 
 
 @app.command("codex", help="Analyze Codex tool and mcp token usage")
 def codex(
-    ctx: typer.Context,
     project_path: Annotated[Path | None, typer.Argument()] = None,
     *,
     detail: bool = DETAIL_OPTION,
@@ -72,8 +55,6 @@ def codex(
     json: bool = JSON_OPTION,
 ) -> None:
     logger.debug(f"codex: path={project_path}")
-    logger.debug(f"  --theme={theme}")
-    logger.debug(f"  --theme={theme}")
     logger.debug(f"  --detail={detail}")
     logger.debug(f"  --top={top}")
     logger.debug(f"  --theme={theme}")
@@ -117,7 +98,6 @@ def codex(
 
 @app.command("claude", help="Analyze Claude Code tool and mcp token usage")
 def claude(
-    ctx: typer.Context,
     project_path: Annotated[Path | None, typer.Argument()] = None,
     *,
     detail: bool = DETAIL_OPTION,
@@ -137,7 +117,6 @@ def claude(
 
 @app.command("ls", help="List of project select codex or claude")
 def list_project(
-    ctx: typer.Context,
     codex_root: Path = CODEX_ROOT_OPTION,
     codex_encoder: str = "o200k_base",
     # claude_root: Path = CLAUDE_ROOT_OPTION,

@@ -16,6 +16,7 @@ from cxstat.log_models import (
 )
 from cxstat.logger import logger
 from cxstat.models import Aggregate, CallRecord, ProjectUsage, UsageReport
+from cxstat.utils import normalize_path
 
 logger = logger.getChild("service")
 
@@ -40,21 +41,6 @@ def safe_json_loads(text: str | None) -> object | None:
         return json.loads(text)
     except json.JSONDecodeError:
         return None
-
-
-def canonicalize_project_path(project: str | Path | None) -> str | None:
-    """Return a normalised representation of a project path."""
-    if project is None:
-        return None
-    try:
-        candidate = Path(project).expanduser()
-    except (TypeError, ValueError, RuntimeError):
-        return str(project) if isinstance(project, str) else None
-    try:
-        resolved = candidate.resolve()
-    except OSError:
-        resolved = candidate
-    return str(resolved)
 
 
 def parse_logs(root: Path) -> dict[str, CallRecord]:
@@ -82,7 +68,7 @@ def _parse_session_file(path: Path) -> dict[str, CallRecord]:
                 project_path = new_project_path
                 continue
             case FunctionCallEntry():
-                normalised_project = canonicalize_project_path(project_path)
+                normalised_project = normalize_path(project_path)
                 arguments_raw = _coerce_payload_text(entry.arguments)
                 record = CallRecord(
                     call_id=entry.call_id,
@@ -106,7 +92,7 @@ def _parse_session_file(path: Path) -> dict[str, CallRecord]:
                     record.file_path = path
                     record.line_no = line_no
                 if record.project_path is None:
-                    record.project_path = canonicalize_project_path(project_path)
+                    record.project_path = normalize_path(project_path)
                 if record.timestamp is None:
                     record.timestamp = entry.timestamp
                 continue
@@ -235,7 +221,7 @@ def aggregate_usage(records: Iterable[CallRecord], encoder: Encoding) -> UsageRe
         provider_stats[provider_key].add(inp, out)
         overall.add(inp, out)
 
-        project_key = canonicalize_project_path(record.project_path) or "<unknown>"
+        project_key = normalize_path(record.project_path) or "<unknown>"
         project_usage = projects.get(project_key)
         if project_usage is None:
             project_usage = ProjectUsage(project_path=project_key)

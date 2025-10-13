@@ -29,7 +29,7 @@ DETAIL_OPTION = typer.Option(
     False,
     "--detail",
     "-d",
-    help="Show cxstat version",
+    help="Display tool call detail",
 )
 
 THEME_OPTION = typer.Option(
